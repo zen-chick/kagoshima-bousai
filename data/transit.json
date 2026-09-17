@@ -1,0 +1,11 @@
+{
+ "updated": null,
+ "operators": [
+  {"name":"JR九州 鹿児島エリア","kind":"鉄道","url":"https://www.jrkyushu.co.jp/trains/info/kagoshima.html","status":"unknown","note":""},
+  {"name":"九州新幹線","kind":"新幹線","url":"https://www.jrkyushu.co.jp/trains/info/shin.html","status":"unknown","note":""},
+  {"name":"鹿児島市電・市バス（交通局）","kind":"市内","url":"https://www.kotsu-city-kagoshima.jp/","status":"unknown","note":""},
+  {"name":"南国交通","kind":"バス","url":"https://nangoku-kotsu.com/","status":"unknown","note":""},
+  {"name":"いわさきバスネットワーク","kind":"バス","url":"https://iwasaki-corp.com/bus/","status":"unknown","note":""},
+  {"name":"桜島フェリー","kind":"航路","url":"https://www.city.kagoshima.lg.jp/sakurajima-ferry/","status":"unknown","note":""}
+ ]
+}

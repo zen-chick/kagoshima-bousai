@@ -1,85 +1,86 @@
-// Service Worker v2 — 鹿児島防災ナビ
-const CACHE = 'kagoshima-bousai-v2';
-const ASSETS = [
+/* 鹿児島 防災ナビ  Service Worker
+   - アプリ本体: cache first（更新は新バージョンのSWで差し替え）
+   - data/*.json: network first → 失敗時キャッシュ
+   - 地図タイル: ここでは扱わない（アプリ側の IndexedDB が担当）
+*/
+const VERSION = 'v3.0.0';
+const SHELL = `shell-${VERSION}`;
+const DATA  = `data-${VERSION}`;
+
+const SHELL_FILES = [
   './',
   './index.html',
   './manifest.json',
-  './icon.svg',
-  'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css',
-  'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'
+  './data/places.json',
+  'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css',
+  'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js',
+  'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon.png',
+  'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon-2x.png',
+  'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png'
 ];
 
-// インストール：コアアセットをキャッシュ
 self.addEventListener('install', e => {
-  e.waitUntil(
-    caches.open(CACHE).then(c => c.addAll(ASSETS).catch(() => {}))
-  );
-  self.skipWaiting();
+  e.waitUntil((async () => {
+    const c = await caches.open(SHELL);
+    await Promise.allSettled(SHELL_FILES.map(u => c.add(new Request(u, { cache: 'reload' }))));
+    self.skipWaiting();
+  })());
 });
 
-// アクティベート：古いキャッシュを削除
 self.addEventListener('activate', e => {
-  e.waitUntil(
-    caches.keys().then(keys =>
-      Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))
-    )
-  );
-  self.clients.claim();
+  e.waitUntil((async () => {
+    const keys = await caches.keys();
+    await Promise.all(keys.filter(k => !k.endsWith(VERSION)).map(k => caches.delete(k)));
+    await self.clients.claim();
+  })());
 });
 
-// フェッチ戦略
-self.addEventListener('fetch', e => {
-  const url = e.request.url;
-
-  // 地図タイル → Network First（キャッシュ）
-  if (url.includes('tile.openstreetmap.org') || url.includes('arcgisonline.com')) {
-    e.respondWith(
-      caches.open(CACHE + '-tiles').then(tileCache =>
-        tileCache.match(e.request).then(cached => {
-          if (cached) return cached;
-          return fetch(e.request).then(res => {
-            if (res && res.status === 200) tileCache.put(e.request, res.clone());
-            return res;
-          }).catch(() => cached);
-        })
-      )
-    );
-    return;
-  }
-
-  // 気象庁iframe → ネットワーク優先（オフライン時はキャッシュ）
-  if (url.includes('jma.go.jp')) {
-    e.respondWith(
-      fetch(e.request).catch(() => caches.match(e.request))
-    );
-    return;
-  }
-
-  // OSRM ルーティング → ネットワークのみ（オフライン時はエラー）
-  if (url.includes('project-osrm.org')) {
-    e.respondWith(fetch(e.request).catch(() =>
-      new Response(JSON.stringify({ code: 'Error', message: 'offline' }), {
-        headers: { 'Content-Type': 'application/json' }
-      })
-    ));
-    return;
-  }
-
-  // アプリ本体 (HTML/JS/CSS) → キャッシュ優先
-  e.respondWith(
-    caches.match(e.request).then(cached => {
-      if (cached) return cached;
-      return fetch(e.request).then(res => {
-        if (!res || res.status !== 200 || res.type === 'opaque') return res;
-        const clone = res.clone();
-        caches.open(CACHE).then(c => c.put(e.request, clone));
-        return res;
-      });
-    })
-  );
-});
-
-// メッセージ受信（強制更新）
 self.addEventListener('message', e => {
-  if (e.data && e.data.type === 'SKIP_WAITING') self.skipWaiting();
+  if (e.data === 'skipWaiting') self.skipWaiting();
+  if (e.data === 'clearAll') {
+    caches.keys().then(ks => Promise.all(ks.map(k => caches.delete(k))));
+  }
+});
+
+self.addEventListener('fetch', e => {
+  const req = e.request;
+  if (req.method !== 'GET') return;
+  const url = new URL(req.url);
+
+  // 気象庁・国土地理院のタイルはSWを通さない（IndexedDB側で管理）
+  if (/(^|\.)jma\.go\.jp$/.test(url.hostname) || /gsi\.go\.jp$/.test(url.hostname)) return;
+  // Google Maps の埋め込みはキャッシュしない（規約上オフライン保存不可）
+  if (/google\.com$/.test(url.hostname)) return;
+
+  if (url.pathname.includes('/data/') && url.pathname.endsWith('.json')) {
+    e.respondWith((async () => {
+      try {
+        const res = await fetch(req, { cache: 'no-store' });
+        const c = await caches.open(DATA);
+        c.put(req, res.clone());
+        return res;
+      } catch (err) {
+        const hit = await caches.match(req);
+        if (hit) return hit;
+        return new Response('{}', { headers: { 'Content-Type': 'application/json' } });
+      }
+    })());
+    return;
+  }
+
+  e.respondWith((async () => {
+    const hit = await caches.match(req);
+    if (hit) return hit;
+    try {
+      const res = await fetch(req);
+      if (res.ok && (url.origin === location.origin || url.hostname === 'cdnjs.cloudflare.com')) {
+        const c = await caches.open(SHELL);
+        c.put(req, res.clone());
+      }
+      return res;
+    } catch (err) {
+      if (req.mode === 'navigate') return caches.match('./index.html');
+      throw err;
+    }
+  })());
 });
