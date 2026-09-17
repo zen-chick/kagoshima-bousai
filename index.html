@@ -1,409 +1,479 @@
-
-
 <!DOCTYPE html>
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <meta name="theme-color" content="#c0392b">
-  <meta name="description" content="鹿児島パーソナル防災アプリ — オフライン対応">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="description" content="鹿児島パーソナル防災アプリ v2 — オフライン対応PWA">
   <link rel="manifest" href="manifest.json">
-  <link rel="apple-touch-icon" href="icon-192.png">
+  <link rel="apple-touch-icon" href="icon.svg">
   <title>鹿児島 防災ナビ</title>
+
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+
   <style>
     :root {
       --red:    #c0392b;
       --red2:   #e74c3c;
       --orange: #e67e22;
-      --yellow: #f1c40f;
+      --yellow: #f39c12;
       --green:  #27ae60;
       --blue:   #2980b9;
-      --bg:     #f4f4f4;
+      --bg:     #f0f2f5;
       --card:   #ffffff;
       --text:   #1a1a1a;
       --muted:  #666;
-      --border: #ddd;
-      --nav-h:  56px;
+      --border: #e0e0e0;
+      --nav-h:  54px;
+      --hdr-h:  50px;
       --safe-b: env(safe-area-inset-bottom, 0px);
     }
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    html, body { height: 100%; font-family: -apple-system, "Hiragino Sans", "Meiryo", sans-serif; background: var(--bg); color: var(--text); font-size: 15px; }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; overflow: hidden; font-family: -apple-system, "Hiragino Sans", "Meiryo", sans-serif; background: var(--bg); color: var(--text); font-size: 15px; }
 
-    /* ── ヘッダー ── */
+    /* ── Header ── */
     #header {
-      position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+      position: fixed; top: 0; left: 0; right: 0; z-index: 200;
+      height: var(--hdr-h);
       background: var(--red); color: #fff;
       display: flex; align-items: center; justify-content: space-between;
-      padding: 0 16px; height: var(--nav-h);
-      box-shadow: 0 2px 6px rgba(0,0,0,.25);
+      padding: 0 14px;
+      box-shadow: 0 2px 8px rgba(0,0,0,.3);
     }
-    #header h1 { font-size: 17px; font-weight: 700; letter-spacing: .5px; }
-    #header .sub { font-size: 11px; opacity: .85; margin-top: 1px; }
-    #offlineBadge {
-      display: none; background: #fff; color: var(--red);
-      font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 20px;
-    }
+    #header .title { font-size: 16px; font-weight: 700; letter-spacing: .3px; }
+    #header .right { display: flex; align-items: center; gap: 8px; }
+    #offlineBadge { display: none; background: #fff; color: var(--red); font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 20px; }
     #offlineBadge.show { display: inline-block; }
+    #updateBtn { background: rgba(255,255,255,.2); border: none; color: #fff; font-size: 11px; padding: 4px 9px; border-radius: 14px; cursor: pointer; font-weight: 600; }
 
-    /* ── コンテンツ ── */
+    /* ── Main scroll area ── */
     #main {
-      padding-top: var(--nav-h);
-      padding-bottom: calc(var(--nav-h) + var(--safe-b) + 8px);
-      min-height: 100%;
+      position: fixed;
+      top: var(--hdr-h);
+      left: 0; right: 0;
+      bottom: calc(var(--nav-h) + var(--safe-b));
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
     }
-    .page { display: none; padding: 12px; }
+    .page { display: none; padding: 10px; }
     .page.active { display: block; }
+    .page-map { display: none; padding: 0; }
+    .page-map.active { display: block; }
 
-    /* ── カード ── */
-    .card {
-      background: var(--card); border-radius: 10px;
-      padding: 14px 16px; margin-bottom: 12px;
-      box-shadow: 0 1px 4px rgba(0,0,0,.08);
-    }
-    .card h2 { font-size: 14px; font-weight: 700; color: var(--muted); margin-bottom: 10px; text-transform: uppercase; letter-spacing: .5px; }
-    .card h3 { font-size: 15px; font-weight: 700; margin-bottom: 6px; }
+    /* ── Cards ── */
+    .card { background: var(--card); border-radius: 12px; padding: 13px 15px; margin-bottom: 10px; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+    .card-title { font-size: 12px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; margin-bottom: 8px; }
 
-    /* ── 警戒レベルバナー ── */
-    .level-bar {
-      border-radius: 8px; padding: 10px 14px; margin-bottom: 12px;
-      display: flex; align-items: center; gap: 10px; font-weight: 700;
-    }
-    .level-bar .icon { font-size: 24px; }
-    .level-bar .label { font-size: 13px; opacity: .9; }
-    .lv1 { background: #eaf5ff; color: #1a6fad; }
-    .lv2 { background: #fff8e1; color: #b45309; }
-    .lv3 { background: #fff3cd; color: #92400e; }
-    .lv4 { background: #ffe0e0; color: #991b1b; }
-    .lv5 { background: #4a0000; color: #fff; }
+    /* ── Alert banner ── */
+    .alert-bar { border-radius: 10px; padding: 11px 14px; margin-bottom: 10px; display: flex; align-items: center; gap: 10px; }
+    .alert-bar .ico { font-size: 26px; flex-shrink: 0; }
+    .alert-bar .ttl { font-size: 15px; font-weight: 700; }
+    .alert-bar .sub { font-size: 12px; opacity: .85; margin-top: 2px; }
+    .lv0 { background: #e8f5e9; color: #1b5e20; }
+    .lv1 { background: #e3f2fd; color: #0d47a1; }
+    .lv2 { background: #fff8e1; color: #e65100; }
+    .lv3 { background: #fce4ec; color: #880e4f; }
+    .lv4 { background: #3d0000; color: #fff; }
 
-    /* ── 雨量グラフ ── */
-    .rain-chart { display: flex; align-items: flex-end; gap: 4px; height: 80px; margin-top: 8px; }
-    .rain-bar { flex: 1; background: var(--blue); border-radius: 3px 3px 0 0; min-height: 2px; transition: height .3s; position: relative; }
-    .rain-bar.heavy { background: var(--red2); }
-    .rain-bar.warn  { background: var(--orange); }
-    .rain-labels { display: flex; gap: 4px; margin-top: 4px; }
-    .rain-label { flex: 1; text-align: center; font-size: 10px; color: var(--muted); }
-    .rain-value { flex: 1; text-align: center; font-size: 10px; font-weight: 700; }
+    /* ── Info rows ── */
+    .irow { display: flex; justify-content: space-between; align-items: center; padding: 7px 0; border-bottom: 1px solid var(--border); font-size: 14px; }
+    .irow:last-child { border-bottom: none; }
+    .irow .val { font-weight: 700; }
 
-    /* ── 土砂危険度テーブル ── */
-    .risk-table { width: 100%; border-collapse: collapse; font-size: 13px; }
-    .risk-table th, .risk-table td { padding: 7px 8px; border-bottom: 1px solid var(--border); text-align: left; }
-    .risk-table th { font-weight: 700; color: var(--muted); font-size: 11px; text-transform: uppercase; }
+    /* ── Badges ── */
     .badge { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 11px; font-weight: 700; }
-    .badge.high   { background: #ffe0e0; color: #991b1b; }
-    .badge.medium { background: #fff3cd; color: #92400e; }
-    .badge.low    { background: #e8f5e9; color: #1b5e20; }
+    .badge-red    { background: #fde8e8; color: #9b1c1c; }
+    .badge-orange { background: #fff3e0; color: #9a3412; }
+    .badge-yellow { background: #fefce8; color: #854d0e; }
+    .badge-green  { background: #f0fdf4; color: #166534; }
+    .badge-blue   { background: #eff6ff; color: #1e40af; }
 
-    /* ── チェックリスト ── */
-    .checklist { list-style: none; }
-    .checklist li {
-      display: flex; align-items: flex-start; gap: 10px;
-      padding: 8px 0; border-bottom: 1px solid var(--border);
+    /* ── Checklist ── */
+    .ckl { list-style: none; }
+    .ckl li { display: flex; align-items: flex-start; gap: 9px; padding: 7px 0; border-bottom: 1px solid var(--border); }
+    .ckl li:last-child { border-bottom: none; }
+    .ckl input[type=checkbox] { width: 17px; height: 17px; flex-shrink: 0; margin-top: 2px; accent-color: var(--red); cursor: pointer; }
+    .ckl label { cursor: pointer; line-height: 1.4; font-size: 14px; }
+    .ckl input:checked + label { text-decoration: line-through; color: var(--muted); }
+
+    /* ── Volcano card ── */
+    .vol-card { text-align: center; border-radius: 10px; padding: 14px; margin-bottom: 8px; }
+    .vol-card .lv-n { font-size: 52px; font-weight: 900; line-height: 1; }
+    .vol-card .lv-l { font-size: 13px; font-weight: 700; margin-top: 4px; }
+    .vol-lv3 { background: #fff3e0; color: #bf360c; }
+
+    /* ── Month rain grid ── */
+    .mrg { display: grid; grid-template-columns: repeat(4,1fr); gap: 5px; margin-top: 6px; }
+    .mrc { background: #f0f7ff; border-radius: 8px; padding: 6px 4px; text-align: center; }
+    .mrc.peak { background: #fff0e0; }
+    .mrc .mo { font-size: 10px; color: var(--muted); }
+    .mrc .mm { font-size: 15px; font-weight: 700; color: var(--blue); }
+    .mrc.peak .mm { color: var(--orange); }
+
+    /* ── Iframe ── */
+    .radar-frame { width: 100%; border: none; border-radius: 8px; display: block; }
+
+    /* ── Map ── */
+    #mapEl { position: absolute; top: 0; left: 0; right: 0; bottom: 0; }
+    #map-container { position: relative; width: 100%; height: 100%; }
+
+    /* Map overlay panels */
+    #mapToolbar {
+      position: absolute; top: 10px; left: 10px; right: 10px; z-index: 500;
+      display: flex; gap: 6px; flex-wrap: wrap;
     }
-    .checklist li:last-child { border-bottom: none; }
-    .checklist input[type=checkbox] { width: 18px; height: 18px; flex-shrink: 0; margin-top: 1px; accent-color: var(--red); cursor: pointer; }
-    .checklist label { cursor: pointer; line-height: 1.4; }
-    .checklist input:checked + label { text-decoration: line-through; color: var(--muted); }
+    .map-btn {
+      background: #fff; border: none; border-radius: 20px; padding: 6px 12px;
+      font-size: 12px; font-weight: 700; cursor: pointer; box-shadow: 0 2px 6px rgba(0,0,0,.2);
+      color: var(--text);
+    }
+    .map-btn.active { background: var(--red); color: #fff; }
 
-    /* ── メモ ── */
-    #memoArea { width: 100%; min-height: 80px; border: 1px solid var(--border); border-radius: 6px; padding: 8px; font-size: 14px; resize: vertical; font-family: inherit; }
-    .btn { display: inline-block; padding: 8px 16px; border-radius: 6px; border: none; font-size: 14px; font-weight: 700; cursor: pointer; }
-    .btn-primary { background: var(--red); color: #fff; }
-    .btn-sm { padding: 5px 12px; font-size: 13px; }
-    .btn-outline { background: transparent; border: 1.5px solid var(--red); color: var(--red); }
+    #spotPanel {
+      position: absolute; bottom: 10px; left: 10px; right: 10px; z-index: 500;
+      background: #fff; border-radius: 12px; padding: 12px; box-shadow: 0 4px 16px rgba(0,0,0,.2);
+      display: none;
+    }
+    #spotPanel.show { display: block; }
+    #spotPanel h3 { font-size: 14px; margin-bottom: 8px; }
+    #spotPanel input, #spotPanel select {
+      width: 100%; padding: 7px 10px; border: 1px solid var(--border); border-radius: 8px;
+      font-size: 13px; margin-bottom: 6px; font-family: inherit;
+    }
+    #routePanel {
+      position: absolute; bottom: 10px; left: 10px; right: 10px; z-index: 500;
+      background: #fff; border-radius: 12px; padding: 12px; box-shadow: 0 4px 16px rgba(0,0,0,.2);
+      display: none;
+    }
+    #routePanel.show { display: block; }
+    #routePanel h3 { font-size: 14px; margin-bottom: 8px; }
+    #routeInfo { font-size: 13px; color: var(--muted); margin-top: 8px; }
 
-    /* ── 避難所リスト ── */
-    .shelter-list { list-style: none; }
-    .shelter-list li { padding: 10px 0; border-bottom: 1px solid var(--border); }
-    .shelter-list li:last-child { border-bottom: none; }
-    .shelter-name { font-weight: 700; font-size: 14px; }
-    .shelter-meta { font-size: 12px; color: var(--muted); margin-top: 2px; }
-    .shelter-tags { margin-top: 4px; display: flex; flex-wrap: wrap; gap: 4px; }
-    .tag { font-size: 11px; padding: 1px 7px; border-radius: 20px; background: #e8f0fe; color: #1a56db; }
-
-    /* ── 緊急連絡先 ── */
+    /* ── Settings ── */
+    .set-section { margin-bottom: 14px; }
+    .set-section-title { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; padding: 0 0 5px; border-bottom: 2px solid var(--red); margin-bottom: 8px; }
     .contact-list { list-style: none; }
-    .contact-list li { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--border); }
+    .contact-list li { display: flex; align-items: center; justify-content: space-between; padding: 9px 0; border-bottom: 1px solid var(--border); }
     .contact-list li:last-child { border-bottom: none; }
-    .contact-name { font-weight: 700; font-size: 14px; }
+    .contact-name { font-size: 14px; font-weight: 700; }
+    .contact-sub  { font-size: 11px; color: var(--muted); margin-top: 1px; }
     .contact-num  { font-size: 16px; font-weight: 700; color: var(--blue); text-decoration: none; }
+    .shelter-list { list-style: none; }
+    .shelter-list li { padding: 9px 0; border-bottom: 1px solid var(--border); }
+    .shelter-list li:last-child { border-bottom: none; }
+    .s-name { font-size: 14px; font-weight: 700; }
+    .s-meta { font-size: 12px; color: var(--muted); margin-top: 2px; }
+    .s-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+    .tag { font-size: 11px; padding: 1px 7px; border-radius: 20px; background: #e8f0fe; color: #1a56db; }
+    textarea.memo { width: 100%; min-height: 80px; border: 1px solid var(--border); border-radius: 8px; padding: 8px; font-size: 13px; resize: vertical; font-family: inherit; }
+    .btn { display: inline-block; padding: 8px 16px; border-radius: 8px; border: none; font-size: 13px; font-weight: 700; cursor: pointer; }
+    .btn-primary { background: var(--red); color: #fff; }
+    .btn-sm { padding: 6px 12px; font-size: 12px; }
+    .btn-gray { background: #eee; color: #333; }
+    .custom-item { background: #f8f8f8; border: 1px solid var(--border); border-radius: 8px; padding: 9px 12px; margin-bottom: 7px; position: relative; }
+    .custom-item .del { position: absolute; top: 8px; right: 10px; background: none; border: none; color: #bbb; font-size: 18px; cursor: pointer; }
+    .custom-item .del:hover { color: var(--red); }
+    .cache-status { font-size: 12px; color: var(--muted); margin-top: 6px; }
+    .cache-status.ok { color: var(--green); }
 
-    /* ── 月別平均雨量テーブル ── */
-    .month-rain { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 8px; }
-    .month-cell { background: #f0f7ff; border-radius: 6px; padding: 6px; text-align: center; }
-    .month-cell.peak { background: #fff0e0; }
-    .month-cell .mo { font-size: 11px; color: var(--muted); }
-    .month-cell .mm { font-size: 16px; font-weight: 700; color: var(--blue); }
-    .month-cell.peak .mm { color: var(--orange); }
-
-    /* ── カスタム情報追加 ── */
-    .custom-item { background: #f9f9f9; border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; margin-bottom: 8px; position: relative; }
-    .custom-item .del-btn { position: absolute; top: 8px; right: 10px; background: none; border: none; color: #ccc; font-size: 18px; cursor: pointer; }
-    .custom-item .del-btn:hover { color: var(--red); }
-    .custom-title-row { display: flex; gap: 8px; margin-bottom: 8px; }
-    #newTitle { flex: 1; padding: 7px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 14px; }
-    #newCategory { padding: 7px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 14px; background: #fff; }
-    #newBody { width: 100%; min-height: 60px; padding: 7px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 14px; resize: vertical; font-family: inherit; margin-bottom: 8px; }
-
-    /* ── ボトムナビ ── */
+    /* ── Bottom nav ── */
     #nav {
-      position: fixed; bottom: 0; left: 0; right: 0; z-index: 100;
-      background: #fff; border-top: 1px solid var(--border);
-      display: grid; grid-template-columns: repeat(5, 1fr);
+      position: fixed; bottom: 0; left: 0; right: 0; z-index: 200;
       height: calc(var(--nav-h) + var(--safe-b));
       padding-bottom: var(--safe-b);
-      box-shadow: 0 -2px 8px rgba(0,0,0,.07);
+      background: #fff; border-top: 1px solid var(--border);
+      display: grid; grid-template-columns: repeat(5,1fr);
+      box-shadow: 0 -2px 10px rgba(0,0,0,.08);
     }
-    .nav-btn {
+    .nb {
       display: flex; flex-direction: column; align-items: center; justify-content: center;
-      border: none; background: none; cursor: pointer; padding: 6px 0;
-      color: var(--muted); font-size: 10px; gap: 2px; transition: color .15s;
+      border: none; background: none; cursor: pointer; color: var(--muted);
+      font-size: 10px; gap: 2px; padding: 4px 0;
     }
-    .nav-btn .ico { font-size: 22px; line-height: 1; }
-    .nav-btn.active { color: var(--red); }
+    .nb .ic { font-size: 21px; line-height: 1; }
+    .nb.active { color: var(--red); }
 
-    /* ── セクション区切り ── */
-    .section-title {
-      font-size: 13px; font-weight: 700; color: var(--muted);
-      text-transform: uppercase; letter-spacing: .5px;
-      padding: 6px 0 4px; margin-bottom: 6px;
-      border-bottom: 2px solid var(--red);
-      display: inline-block;
-    }
-
-    /* ── info rows ── */
-    .info-row { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 14px; }
-    .info-row:last-child { border-bottom: none; }
-    .info-row .val { font-weight: 700; }
-
-    /* ── 火山 ── */
-    .volcano-level { text-align: center; padding: 14px; border-radius: 8px; margin-bottom: 10px; }
-    .volcano-level .lv-num { font-size: 48px; font-weight: 900; line-height: 1; }
-    .volcano-level .lv-label { font-size: 14px; font-weight: 700; margin-top: 4px; }
-    .vl2 { background: #fff8e1; color: #b45309; }
-    .vl3 { background: #ffe0b2; color: #7c2d12; }
-
-    /* ── update time ── */
-    .update-time { font-size: 11px; color: var(--muted); text-align: right; margin-top: 4px; }
-
-    @media (min-width: 480px) {
-      #main { max-width: 480px; margin: 0 auto; }
-      #header, #nav { max-width: 480px; left: 50%; transform: translateX(-50%); }
+    @media (min-width: 500px) {
+      body { display: flex; justify-content: center; }
+      #header, #main, #nav { max-width: 500px; left: 50%; right: auto; transform: translateX(-50%); width: 100%; }
+      #main { transform: translateX(-50%); }
     }
   </style>
 </head>
 <body>
 
 <header id="header">
-  <div>
-    <div id="headerTitle" style="font-size:17px;font-weight:700;">🌋 鹿児島 防災ナビ</div>
-    <div class="sub" id="headerSub">パーソナル防災アプリ</div>
+  <div class="title">🌋 鹿児島 防災ナビ</div>
+  <div class="right">
+    <span id="offlineBadge">OFFLINE</span>
+    <button id="updateBtn" onclick="triggerUpdate()">⟳ 更新</button>
   </div>
-  <span id="offlineBadge">OFFLINE</span>
 </header>
 
 <main id="main">
 
-  <!-- ① ホーム（ダッシュボード） -->
+  <!-- ① ホーム -->
   <section class="page active" id="page-home">
-    <div id="alertBanner" class="level-bar lv1">
-      <span class="icon">🟢</span>
-      <div><div id="alertTitle">現在：警報なし</div><div class="label" id="alertSub">平常時 — 日頃の備えを確認しましょう</div></div>
+    <div id="alertBanner" class="alert-bar lv0">
+      <span class="ico">🟢</span>
+      <div><div class="ttl" id="alertTitle">現在：特別な警報なし</div><div class="sub" id="alertSub">平常時 — 日頃の備えを確認しましょう</div></div>
     </div>
 
     <div class="card">
-      <h2>🌧 今月の累積雨量（鹿児島市）</h2>
-      <div style="display:flex;align-items:baseline;gap:6px;margin-bottom:4px;">
-        <span id="totalRain" style="font-size:32px;font-weight:900;color:var(--blue);">—</span>
-        <span style="font-size:14px;color:var(--muted);">mm / 月平均 <span id="avgRain">—</span> mm</span>
+      <div class="card-title">🌧 今月の雨量（鹿児島市 平年比）</div>
+      <div style="display:flex;align-items:baseline;gap:6px;margin-bottom:6px;">
+        <span id="totalRain" style="font-size:34px;font-weight:900;color:var(--blue);">—</span>
+        <span style="font-size:13px;color:var(--muted);">mm 推定 / 平年 <strong id="avgRain">—</strong> mm</span>
       </div>
-      <div id="rainProgress" style="height:8px;background:#e8f0fe;border-radius:4px;overflow:hidden;">
-        <div id="rainBar" style="height:100%;background:var(--blue);width:0%;border-radius:4px;transition:width .5s;"></div>
+      <div style="height:8px;background:#dbeafe;border-radius:4px;overflow:hidden;">
+        <div id="rainBar" style="height:100%;width:0%;border-radius:4px;transition:width .6s;background:var(--blue);"></div>
       </div>
-      <div class="update-time" id="rainUpdate">（データ：気象庁 鹿児島地方気象台）</div>
+      <div style="font-size:11px;color:var(--muted);margin-top:4px;">気象庁平年値（1991〜2020）より推定</div>
     </div>
 
     <div class="card">
-      <h2>⛰ 土砂災害 危険度（鹿児島市内）</h2>
-      <div id="saboSummary">
-        <div class="info-row"><span>現在のリスクレベル</span><span class="val" id="saboLevel">—</span></div>
-        <div class="info-row"><span>土砂災害警戒区域数</span><span class="val">約 2,900 箇所</span></div>
-        <div class="info-row"><span>直近72h雨量換算</span><span class="val" id="saboRain72">—</span></div>
-      </div>
+      <div class="card-title">⛰ 土砂・洪水リスク</div>
+      <div class="irow"><span>季節リスク</span><span class="val" id="saboLevel">—</span></div>
+      <div class="irow"><span>警戒区域（鹿児島市）</span><span class="val">約2,900箇所</span></div>
+      <div class="irow"><span>今月推定累積雨量</span><span class="val" id="saboRain">—</span></div>
+      <button class="btn btn-gray btn-sm" style="margin-top:8px;width:100%;" onclick="showPage('sabo',null)">⛰ 詳細・ハザードマップを見る</button>
     </div>
 
     <div class="card">
-      <h2>🌋 桜島 噴火警戒レベル</h2>
-      <div class="volcano-level vl2" id="volcanoCard">
-        <div class="lv-num" id="volcanoLv">3</div>
-        <div class="lv-label" id="volcanoLabel">入山規制（火口から2km立入禁止）</div>
+      <div class="card-title">🌋 桜島 噴火警戒レベル</div>
+      <div class="vol-card vol-lv3">
+        <div class="lv-n">3</div>
+        <div class="lv-l">入山規制（火口から2km立入禁止）</div>
       </div>
-      <div style="font-size:12px;color:var(--muted);">※ 最新情報は気象庁HPで確認してください</div>
+      <div style="font-size:11px;color:var(--muted);">最新情報は気象庁HPで確認してください</div>
     </div>
 
     <div class="card">
-      <h2>📢 今日のチェック</h2>
-      <ul class="checklist" id="dailyChecklist">
+      <div class="card-title">📢 今日のチェック</div>
+      <ul class="ckl">
         <li><input type="checkbox" id="dc1"><label for="dc1">非常用持出袋の場所を確認</label></li>
-        <li><input type="checkbox" id="dc2"><label for="dc2">飲料水の備蓄量（1人3日分＝9L）</label></li>
-        <li><input type="checkbox" id="dc3"><label for="dc3">家族の避難場所・連絡先を共有</label></li>
-        <li><input type="checkbox" id="dc4"><label for="dc4">スマホの充電 80%以上を維持</label></li>
-        <li><input type="checkbox" id="dc5"><label for="dc5">近所のハザードマップを再確認</label></li>
+        <li><input type="checkbox" id="dc2"><label for="dc2">飲料水の備蓄（1人3日分＝9L）</label></li>
+        <li><input type="checkbox" id="dc3"><label for="dc3">家族の避難場所・連絡先を確認</label></li>
+        <li><input type="checkbox" id="dc4"><label for="dc4">スマホ充電 80%以上を維持</label></li>
+        <li><input type="checkbox" id="dc5"><label for="dc5">ハザードマップを再確認</label></li>
       </ul>
     </div>
   </section>
 
-  <!-- ② 雨量・気象 -->
+  <!-- ② 雨量・台風 -->
   <section class="page" id="page-rain">
     <div class="card">
-      <h2>🌧 鹿児島 月別平均降水量</h2>
-      <p style="font-size:12px;color:var(--muted);margin-bottom:8px;">平年値（1991〜2020年 気象庁）</p>
-      <div class="month-rain" id="monthRainGrid"></div>
+      <div class="card-title">🌧 雨雲レーダー（気象庁）</div>
+      <p style="font-size:11px;color:var(--muted);margin-bottom:6px;">オンライン時のみ表示。オフライン時は月別データを参照。</p>
+      <iframe class="radar-frame" height="320"
+        src="https://www.jma.go.jp/bosai/nowc/#zoom:8/lat:31.6/lon:130.56/colordepth:deep/elements:hrpns"
+        loading="lazy" title="雨雲レーダー（気象庁）"></iframe>
+      <a href="https://www.jma.go.jp/bosai/nowc/#zoom:8/lat:31.6/lon:130.56/colordepth:deep/elements:hrpns"
+         target="_blank" style="font-size:12px;color:var(--blue);display:block;margin-top:6px;">
+        ↗ 気象庁 雨雲レーダー（全画面）
+      </a>
     </div>
 
     <div class="card">
-      <h2>📊 季節別リスクカレンダー</h2>
-      <div class="info-row"><span>梅雨前線（6〜7月）</span><span class="val" style="color:var(--red2);">⚠ 最高リスク</span></div>
-      <div class="info-row"><span>台風シーズン（8〜9月）</span><span class="val" style="color:var(--orange);">⚠ 高リスク</span></div>
-      <div class="info-row"><span>秋雨（10月）</span><span class="val" style="color:var(--yellow);">注意</span></div>
-      <div class="info-row"><span>冬期（12〜2月）</span><span class="val" style="color:var(--green);">比較的安全</span></div>
-      <div class="info-row"><span>桜島降灰（通年）</span><span class="val" style="color:var(--muted);">日常的に注意</span></div>
+      <div class="card-title">🌀 台風情報（気象庁）</div>
+      <p style="font-size:11px;color:var(--muted);margin-bottom:6px;">オンライン時のみ表示。</p>
+      <iframe class="radar-frame" height="300"
+        src="https://www.jma.go.jp/bosai/map.html#5/31.6/130.5/&elem=typhoon&contents=typhoon"
+        loading="lazy" title="台風情報（気象庁）"></iframe>
+      <a href="https://www.jma.go.jp/bosai/typhoon/" target="_blank"
+         style="font-size:12px;color:var(--blue);display:block;margin-top:6px;">
+        ↗ 気象庁 台風情報（全画面）
+      </a>
     </div>
 
     <div class="card">
-      <h2>🌡 警戒雨量の目安（鹿児島市）</h2>
-      <div class="info-row"><span>1時間 20mm以上</span><span class="val badge medium">注意報レベル</span></div>
-      <div class="info-row"><span>1時間 30mm以上</span><span class="val badge high">警報レベル</span></div>
-      <div class="info-row"><span>3時間 100mm以上</span><span class="val badge high">土砂災害注意</span></div>
-      <div class="info-row"><span>24時間 200mm以上</span><span class="val badge high">重大警戒</span></div>
-      <div class="info-row"><span>48時間 300mm以上</span><span class="val badge high">最高警戒</span></div>
+      <div class="card-title">📊 月別平均降水量（平年値）</div>
+      <p style="font-size:11px;color:var(--muted);margin-bottom:4px;">1991〜2020 気象庁 鹿児島市</p>
+      <div class="mrg" id="monthRainGrid"></div>
     </div>
 
     <div class="card">
-      <h2>🏔 地域別年間降水量</h2>
-      <div class="info-row"><span>鹿児島市（市街地）</span><span class="val">約 2,354 mm</span></div>
-      <div class="info-row"><span>屋久島（山頂付近）</span><span class="val">約 8,000〜10,000 mm</span></div>
-      <div class="info-row"><span>屋久島（宮之浦）</span><span class="val">約 4,428 mm</span></div>
-      <div class="info-row"><span>奄美大島（名瀬）</span><span class="val">約 2,753 mm</span></div>
-      <div class="info-row"><span>霧島市</span><span class="val">約 2,500 mm</span></div>
-      <div class="info-row"><span>指宿市</span><span class="val">約 2,100 mm</span></div>
+      <div class="card-title">⚠ 警戒雨量の目安</div>
+      <div class="irow"><span>1時間 20mm〜</span><span class="badge badge-yellow">注意報</span></div>
+      <div class="irow"><span>1時間 30mm〜</span><span class="badge badge-orange">警報</span></div>
+      <div class="irow"><span>3時間 100mm〜</span><span class="badge badge-red">土砂注意</span></div>
+      <div class="irow"><span>24時間 200mm〜</span><span class="badge badge-red">重大警戒</span></div>
+      <div class="irow"><span>48時間 300mm〜</span><span class="badge badge-red">最高警戒</span></div>
     </div>
 
     <div class="card">
-      <h2>💡 降灰時の雨水注意</h2>
-      <p style="font-size:13px;line-height:1.7;color:#333;">
-        桜島の火山灰が積もった後の降雨は、灰が流れ込み<strong>排水口の詰まり・泥流化</strong>のリスクがあります。
-        降灰直後の大雨時は屋外活動を控え、排水溝の状態を確認してください。
-      </p>
+      <div class="card-title">📅 季節別リスクカレンダー</div>
+      <div class="irow"><span>梅雨前線（6〜7月）</span><span class="badge badge-red">最高リスク</span></div>
+      <div class="irow"><span>台風シーズン（8〜9月）</span><span class="badge badge-orange">高リスク</span></div>
+      <div class="irow"><span>秋雨（10月）</span><span class="badge badge-yellow">注意</span></div>
+      <div class="irow"><span>冬期（12〜2月）</span><span class="badge badge-green">低リスク</span></div>
+      <div class="irow"><span>桜島降灰（通年）</span><span class="badge badge-blue">日常注意</span></div>
     </div>
   </section>
 
   <!-- ③ 土砂・火山 -->
   <section class="page" id="page-sabo">
     <div class="card">
-      <h2>⛰ 土砂災害危険箇所（鹿児島市）</h2>
-      <div class="info-row"><span>土砂災害警戒区域（イエロー）</span><span class="val">約 2,900 箇所</span></div>
-      <div class="info-row"><span>土砂災害特別警戒区域（レッド）</span><span class="val">約 2,200 箇所</span></div>
-      <div class="info-row"><span>急傾斜地崩壊危険箇所</span><span class="val">約 4,800 箇所</span></div>
-      <div class="info-row"><span>土石流危険渓流</span><span class="val">約 1,800 箇所</span></div>
-      <div class="info-row"><span>地すべり危険箇所</span><span class="val">約 500 箇所</span></div>
+      <div class="card-title">🗺 ハザードマップ（地図で確認）</div>
+      <p style="font-size:12px;color:var(--muted);margin-bottom:8px;">鹿児島市・国土交通省の公式ハザードマップを地図上で確認できます。オンライン時のみ。</p>
+      <a href="https://disaportal.gsi.go.jp/maps/?ll=31.5966,130.5571&z=13&base=pale&ls=dosekiryu%7Ckyukeisya%7Cjisuberi%7Ctokubetsukeikaiku&disp=11111&vs=c1j0h0k0l0u0t0z0r0s0f1" target="_blank"
+         style="display:block;background:var(--blue);color:#fff;text-align:center;padding:12px;border-radius:10px;font-weight:700;font-size:14px;text-decoration:none;margin-bottom:8px;">
+        🗺 土砂災害ハザードマップを開く（国土交通省）
+      </a>
+      <a href="https://www.city.kagoshima.lg.jp/kikikanri/kurashi/bosai/bosai/hazardmap/hazardmap.html" target="_blank"
+         style="display:block;background:#27ae60;color:#fff;text-align:center;padding:12px;border-radius:10px;font-weight:700;font-size:14px;text-decoration:none;">
+        🗺 鹿児島市 防災ハザードマップを開く
+      </a>
     </div>
 
     <div class="card">
-      <h2>⚠ 主要な土砂危険エリア</h2>
-      <table class="risk-table">
-        <thead>
-          <tr><th>エリア</th><th>種別</th><th>リスク</th></tr>
-        </thead>
-        <tbody>
-          <tr><td>郡山町</td><td>急傾斜・土石流</td><td><span class="badge high">高</span></td></tr>
-          <tr><td>吉野台地周辺</td><td>急傾斜</td><td><span class="badge high">高</span></td></tr>
-          <tr><td>紫原・桜ヶ丘</td><td>急傾斜</td><td><span class="badge medium">中</span></td></tr>
-          <tr><td>坂之上・慈眼寺</td><td>土石流</td><td><span class="badge medium">中</span></td></tr>
-          <tr><td>武岡・城西</td><td>急傾斜</td><td><span class="badge medium">中</span></td></tr>
-          <tr><td>平野部市街地</td><td>低危険</td><td><span class="badge low">低</span></td></tr>
-        </tbody>
-      </table>
+      <div class="card-title">⛰ 土砂災害 統計（鹿児島市）</div>
+      <div class="irow"><span>土砂災害警戒区域（黄）</span><span class="val">約 2,900箇所</span></div>
+      <div class="irow"><span>土砂災害特別警戒区域（赤）</span><span class="val">約 2,200箇所</span></div>
+      <div class="irow"><span>急傾斜地崩壊危険箇所</span><span class="val">約 4,800箇所</span></div>
+      <div class="irow"><span>土石流危険渓流</span><span class="val">約 1,800箇所</span></div>
     </div>
 
     <div class="card">
-      <h2>⛑ 土砂災害 前兆サイン</h2>
-      <ul style="list-style:none;font-size:13px;line-height:2;">
+      <div class="card-title">⛑ 土砂災害 前兆サイン</div>
+      <ul style="list-style:none;font-size:13px;line-height:2.1;">
         <li>🔴 山鳴り・地鳴りがする</li>
-        <li>🔴 斜面や地面にひび割れが入る</li>
-        <li>🔴 川の水が急に濁る・増える</li>
-        <li>🔴 山の斜面から水が噴き出す</li>
-        <li>🟠 木が傾いたり、地盤が沈む</li>
-        <li>🟠 硫黄臭や土の臭いが強くなる</li>
-        <li>🟡 樹木が揺れていないのに地面が揺れる</li>
+        <li>🔴 斜面・地面にひび割れが入る</li>
+        <li>🔴 川が急に濁る・増水する</li>
+        <li>🔴 斜面から水が噴き出す</li>
+        <li>🟠 木が傾く、地盤が沈む</li>
+        <li>🟠 硫黄臭・土の臭いが強まる</li>
+        <li>🟡 揺れていないのに地面が動く</li>
       </ul>
-      <p style="font-size:12px;color:var(--muted);margin-top:8px;">赤サインが1つでも見えたら即避難！</p>
+      <div style="font-size:12px;color:var(--red);margin-top:6px;font-weight:700;">🔴 赤サインが1つでも → 即避難！</div>
     </div>
 
     <div class="card">
-      <h2>🌋 桜島 噴火警戒</h2>
-      <table class="risk-table">
-        <thead><tr><th>レベル</th><th>名称</th><th>対応</th></tr></thead>
-        <tbody>
-          <tr><td><strong>5</strong></td><td>避難</td><td>島外全員避難</td></tr>
-          <tr><td><strong>4</strong></td><td>高齢者等避難</td><td>要支援者避難開始</td></tr>
-          <tr><td><strong style="color:var(--orange);">3</strong></td><td>入山規制</td><td style="color:var(--orange);">火口2km立入禁止 ★現在</td></tr>
-          <tr><td><strong>2</strong></td><td>火口周辺規制</td><td>火口1km立入禁止</td></tr>
-          <tr><td><strong>1</strong></td><td>活火山注意</td><td>平常時観察</td></tr>
-        </tbody>
-      </table>
+      <div class="card-title">🌋 桜島 噴火警戒レベル</div>
+      <div class="vol-card vol-lv3" style="margin-bottom:10px;">
+        <div class="lv-n">3</div>
+        <div class="lv-l">入山規制 — 火口から2km立入禁止 ★現在</div>
+      </div>
+      <div class="irow"><span>レベル5 避難</span><span class="badge badge-red">島外全員避難</span></div>
+      <div class="irow"><span>レベル4 高齢者等避難</span><span class="badge badge-orange">要支援者避難</span></div>
+      <div class="irow"><span style="font-weight:700;">レベル3 入山規制 ★</span><span class="badge badge-yellow">2km立入禁止</span></div>
+      <div class="irow"><span>レベル2 火口周辺規制</span><span class="badge badge-green">1km立入禁止</span></div>
+      <div class="irow"><span>レベル1 活火山注意</span><span class="badge badge-blue">平常観察</span></div>
     </div>
 
     <div class="card">
-      <h2>🌫 降灰対策</h2>
-      <ul class="checklist" id="ashChecklist">
-        <li><input type="checkbox" id="ash1"><label for="ash1">ゴーグル・マスク（N95以上）を常備</label></li>
+      <div class="card-title">🌫 降灰対策チェック</div>
+      <ul class="ckl">
+        <li><input type="checkbox" id="ash1"><label for="ash1">ゴーグル・N95マスクを常備</label></li>
         <li><input type="checkbox" id="ash2"><label for="ash2">洗濯物は降灰予報時に室内干し</label></li>
-        <li><input type="checkbox" id="ash3"><label for="ash3">車・雨どいの灰を定期的に除去</label></li>
+        <li><input type="checkbox" id="ash3"><label for="ash3">車・雨どいの灰を定期除去</label></li>
         <li><input type="checkbox" id="ash4"><label for="ash4">降灰袋（ゴミ袋）の備蓄</label></li>
-        <li><input type="checkbox" id="ash5"><label for="ash5">精密機器・換気扇のフィルター確認</label></li>
+        <li><input type="checkbox" id="ash5"><label for="ash5">精密機器フィルターの確認</label></li>
       </ul>
     </div>
   </section>
 
-  <!-- ④ 避難・暮らし -->
-  <section class="page" id="page-life">
+  <!-- ④ 地図・ルート -->
+  <section class="page-map" id="page-map">
+    <div id="map-container">
+      <div id="mapEl"></div>
+      <div id="mapToolbar">
+        <button class="map-btn active" id="btnNormal" onclick="setLayer('normal')">🗺 標準</button>
+        <button class="map-btn" id="btnSat" onclick="setLayer('satellite')">🛰 航空写真</button>
+        <button class="map-btn" id="btnSpot" onclick="toggleSpotMode()">📍 スポット追加</button>
+        <button class="map-btn" id="btnRoute" onclick="toggleRouteMode()">🗺 ルート</button>
+        <button class="map-btn" id="btnMyLoc" onclick="goMyLocation()">📍 現在地</button>
+      </div>
+      <div id="spotPanel">
+        <h3>📍 スポットを登録</h3>
+        <input id="spotName" type="text" placeholder="名称（例：自宅 / 避難所Aへの道）">
+        <select id="spotCat">
+          <option value="🏠 自宅">🏠 自宅</option>
+          <option value="🏥 避難所">🏥 避難所</option>
+          <option value="⚠ 危険箇所">⚠ 危険箇所</option>
+          <option value="🏪 備蓄場所">🏪 備蓄場所</option>
+          <option value="📍 その他">📍 その他</option>
+        </select>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:6px;" id="spotCoordHint">地図をタップして位置を指定してください</div>
+        <div style="display:flex;gap:6px;">
+          <button class="btn btn-primary btn-sm" onclick="saveSpot()">保存</button>
+          <button class="btn btn-gray btn-sm" onclick="closeSpotPanel()">キャンセル</button>
+        </div>
+      </div>
+      <div id="routePanel">
+        <h3>🗺 ルート案内</h3>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:6px;">地図をタップして出発地・目的地を設定</div>
+        <div style="font-size:12px;" id="routeFromLabel">出発地: 未設定</div>
+        <div style="font-size:12px;margin-bottom:6px;" id="routeToLabel">目的地: 未設定</div>
+        <div style="display:flex;gap:6px;">
+          <button class="btn btn-primary btn-sm" onclick="calcRoute()">ルート検索</button>
+          <button class="btn btn-gray btn-sm" onclick="clearRoute()">クリア</button>
+          <button class="btn btn-gray btn-sm" onclick="closeRoutePanel()">✕</button>
+        </div>
+        <div id="routeInfo"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ⑤ 設定 -->
+  <section class="page" id="page-settings">
     <div class="card">
-      <h2>🏃 避難場所（鹿児島市 主要施設）</h2>
-      <ul class="shelter-list">
-        <li>
-          <div class="shelter-name">鹿児島市立鹿児島小学校</div>
-          <div class="shelter-meta">鹿児島市城西一丁目</div>
-          <div class="shelter-tags"><span class="tag">洪水</span><span class="tag">土砂</span><span class="tag">地震</span></div>
-        </li>
-        <li>
-          <div class="shelter-name">吉野公園</div>
-          <div class="shelter-meta">吉野町 — 広域避難地</div>
-          <div class="shelter-tags"><span class="tag">火災</span><span class="tag">津波</span><span class="tag">広域</span></div>
-        </li>
-        <li>
-          <div class="shelter-name">鹿児島アリーナ</div>
-          <div class="shelter-meta">荒田二丁目 — 指定避難所</div>
-          <div class="shelter-tags"><span class="tag">洪水</span><span class="tag">地震</span><span class="tag">福祉</span></div>
-        </li>
-        <li>
-          <div class="shelter-name">与次郎ケ浜小学校</div>
-          <div class="shelter-meta">与次郎二丁目 — 津波避難ビル隣接</div>
-          <div class="shelter-tags"><span class="tag">洪水</span><span class="tag">地震</span></div>
-        </li>
-        <li>
-          <div class="shelter-name">鹿児島市民文化ホール</div>
-          <div class="shelter-meta">鴨池新町 — 福祉避難スペースあり</div>
-          <div class="shelter-tags"><span class="tag">地震</span><span class="tag">福祉</span><span class="tag">ペット</span></div>
-        </li>
-      </ul>
-      <p style="font-size:12px;color:var(--muted);margin-top:8px;">※ 詳細・最新情報は鹿児島市ハザードマップで確認を</p>
+      <div class="card-title">📡 オフラインキャッシュ管理</div>
+      <div class="irow"><span>キャッシュバージョン</span><span class="val" id="cacheVer">v2</span></div>
+      <div class="irow"><span>最終更新</span><span class="val" id="cacheDate">—</span></div>
+      <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;">
+        <button class="btn btn-primary btn-sm" onclick="triggerUpdate()">⟳ 今すぐ更新</button>
+        <button class="btn btn-gray btn-sm" onclick="clearCacheConfirm()">🗑 キャッシュ削除</button>
+      </div>
+      <div id="cacheStatusMsg" class="cache-status"></div>
     </div>
 
-    <div class="card">
-      <h2>📦 非常持出袋チェック</h2>
-      <ul class="checklist" id="bagChecklist">
-        <li><input type="checkbox" id="b1"><label for="b1">飲料水（500ml × 6本）</label></li>
+    <div class="card set-section">
+      <div class="set-section-title">📞 緊急連絡先</div>
+      <ul class="contact-list">
+        <li><div><div class="contact-name">警察</div><div class="contact-sub">事件・事故</div></div><a href="tel:110" class="contact-num">110</a></li>
+        <li><div><div class="contact-name">消防・救急</div><div class="contact-sub">火災・救急</div></div><a href="tel:119" class="contact-num">119</a></li>
+        <li><div><div class="contact-name">災害用伝言ダイヤル</div><div class="contact-sub">安否確認</div></div><a href="tel:171" class="contact-num">171</a></li>
+        <li><div><div class="contact-name">鹿児島市 防災安全課</div><div class="contact-sub">平日 8:30〜17:15</div></div><a href="tel:0992243684" class="contact-num">099-224-3684</a></li>
+        <li><div><div class="contact-name">鹿児島市 災害対策本部</div><div class="contact-sub">災害時開設</div></div><a href="tel:0992242111" class="contact-num">099-224-2111</a></li>
+        <li><div><div class="contact-name">鹿児島県 砂防課</div><div class="contact-sub">土砂災害</div></div><a href="tel:0992865111" class="contact-num">099-286-5111</a></li>
+      </ul>
+    </div>
+
+    <div class="card set-section">
+      <div class="set-section-title">🏃 主要避難施設</div>
+      <ul class="shelter-list">
+        <li>
+          <div class="s-name">鹿児島アリーナ</div>
+          <div class="s-meta">荒田二丁目 — 指定避難所</div>
+          <div class="s-tags"><span class="tag">洪水</span><span class="tag">地震</span><span class="tag">福祉</span></div>
+        </li>
+        <li>
+          <div class="s-name">吉野公園</div>
+          <div class="s-meta">吉野町 — 広域避難地</div>
+          <div class="s-tags"><span class="tag">火災</span><span class="tag">津波</span><span class="tag">広域</span></div>
+        </li>
+        <li>
+          <div class="s-name">鹿児島市民文化ホール</div>
+          <div class="s-meta">鴨池新町 — 福祉スペースあり</div>
+          <div class="s-tags"><span class="tag">地震</span><span class="tag">福祉</span><span class="tag">ペット</span></div>
+        </li>
+        <li>
+          <div class="s-name">与次郎ケ浜小学校</div>
+          <div class="s-meta">与次郎二丁目</div>
+          <div class="s-tags"><span class="tag">洪水</span><span class="tag">地震</span></div>
+        </li>
+      </ul>
+      <p style="font-size:11px;color:var(--muted);margin-top:6px;">※最新は鹿児島市ハザードマップで確認</p>
+    </div>
+
+    <div class="card set-section">
+      <div class="set-section-title">📦 非常持出袋チェック</div>
+      <ul class="ckl">
+        <li><input type="checkbox" id="b1"><label for="b1">飲料水（500ml×6本）</label></li>
         <li><input type="checkbox" id="b2"><label for="b2">非常食（3日分）</label></li>
         <li><input type="checkbox" id="b3"><label for="b3">救急セット・常備薬</label></li>
         <li><input type="checkbox" id="b4"><label for="b4">懐中電灯・予備電池</label></li>
@@ -411,61 +481,27 @@
         <li><input type="checkbox" id="b6"><label for="b6">モバイルバッテリー</label></li>
         <li><input type="checkbox" id="b7"><label for="b7">現金（小銭含む）</label></li>
         <li><input type="checkbox" id="b8"><label for="b8">コピー済み重要書類</label></li>
-        <li><input type="checkbox" id="b9"><label for="b9">雨具・着替え（1〜2日分）</label></li>
-        <li><input type="checkbox" id="b10"><label for="b10">マスク・ゴーグル（降灰対策）</label></li>
-        <li><input type="checkbox" id="b11"><label for="b11">タオル・衛生用品</label></li>
-        <li><input type="checkbox" id="b12"><label for="b12">家族の連絡先メモ（紙）</label></li>
+        <li><input type="checkbox" id="b9"><label for="b9">雨具・着替え</label></li>
+        <li><input type="checkbox" id="b10"><label for="b10">マスク・ゴーグル（降灰）</label></li>
+        <li><input type="checkbox" id="b11"><label for="b11">家族の連絡先メモ（紙）</label></li>
       </ul>
     </div>
 
-    <div class="card">
-      <h2>🚨 警戒レベルと行動</h2>
-      <div class="level-bar lv1" style="margin-bottom:6px;"><span class="icon">🟢</span><div><div>レベル1 — 早期注意情報</div><div class="label">災害への心構えを高める</div></div></div>
-      <div class="level-bar lv2" style="margin-bottom:6px;"><span class="icon">🟡</span><div><div>レベル2 — 大雨・洪水注意報</div><div class="label">避難行動の確認、ハザードマップ再確認</div></div></div>
-      <div class="level-bar lv3" style="margin-bottom:6px;"><span class="icon">🟠</span><div><div>レベル3 — 高齢者等避難</div><div class="label">危険区域の高齢者・障害者は避難開始</div></div></div>
-      <div class="level-bar lv4" style="margin-bottom:6px;"><span class="icon">🔴</span><div><div>レベル4 — 避難指示</div><div class="label">全員が避難行動を開始（命を守る行動）</div></div></div>
-      <div class="level-bar lv5"><span class="icon">🟣</span><div><div>レベル5 — 緊急安全確保</div><div class="label">既に災害発生 — 最善の行動をとる</div></div></div>
-    </div>
-
-    <div class="card">
-      <h2>📝 マイメモ</h2>
-      <textarea id="memoArea" placeholder="家族の集合場所、近所の危険箇所、かかりつけ医など自由に記録"></textarea>
-      <div style="margin-top:8px;display:flex;gap:8px;">
+    <div class="card set-section">
+      <div class="set-section-title">📝 マイメモ</div>
+      <textarea class="memo" id="memoArea" placeholder="家族の集合場所、かかりつけ医、近所の危険箇所など自由に記録"></textarea>
+      <div style="margin-top:8px;display:flex;gap:8px;align-items:center;">
         <button class="btn btn-primary btn-sm" onclick="saveMemo()">💾 保存</button>
-        <span id="memoStatus" style="font-size:12px;color:var(--green);line-height:2.2;"></span>
+        <span id="memoStatus" style="font-size:12px;color:var(--green);"></span>
       </div>
     </div>
-  </section>
 
-  <!-- ⑤ 連絡先・カスタム -->
-  <section class="page" id="page-info">
-    <div class="card">
-      <h2>📞 緊急連絡先</h2>
-      <ul class="contact-list">
-        <li><div><div class="contact-name">警察</div><div style="font-size:11px;color:var(--muted);">事件・事故</div></div><a href="tel:110" class="contact-num">110</a></li>
-        <li><div><div class="contact-name">消防・救急</div><div style="font-size:11px;color:var(--muted);">火災・救急</div></div><a href="tel:119" class="contact-num">119</a></li>
-        <li><div><div class="contact-name">災害用伝言ダイヤル</div><div style="font-size:11px;color:var(--muted);">安否確認</div></div><a href="tel:171" class="contact-num">171</a></li>
-        <li><div><div class="contact-name">鹿児島市 防災安全課</div><div style="font-size:11px;color:var(--muted);">平日 8:30〜17:15</div></div><a href="tel:0992243684" class="contact-num">099-224-3684</a></li>
-        <li><div><div class="contact-name">鹿児島市 災害対策本部</div><div style="font-size:11px;color:var(--muted);">災害時開設</div></div><a href="tel:0992242111" class="contact-num">099-224-2111</a></li>
-        <li><div><div class="contact-name">鹿児島地方気象台</div><div style="font-size:11px;color:var(--muted);">気象情報</div></div><a href="tel:0992255565" class="contact-num">099-225-5565</a></li>
-        <li><div><div class="contact-name">鹿児島県 砂防課</div><div style="font-size:11px;color:var(--muted);">土砂災害</div></div><a href="tel:0992865111" class="contact-num">099-286-5111</a></li>
-      </ul>
-    </div>
-
-    <div class="card">
-      <h2>🔗 オフライン参考資料</h2>
-      <div class="info-row"><span>鹿児島市ハザードマップ</span><span style="font-size:12px;color:var(--muted);">印刷して保管推奨</span></div>
-      <div class="info-row"><span>桜島火山防災マップ</span><span style="font-size:12px;color:var(--muted);">市役所で配布</span></div>
-      <div class="info-row"><span>避難所一覧（PDF）</span><span style="font-size:12px;color:var(--muted);">鹿児島市HP</span></div>
-      <div class="info-row"><span>土砂災害ハザードマップ</span><span style="font-size:12px;color:var(--muted);">県砂防課</span></div>
-    </div>
-
-    <div class="card">
-      <h2>➕ マイ情報を追加</h2>
-      <p style="font-size:12px;color:var(--muted);margin-bottom:10px;">近所の危険箇所、かかりつけ病院など個人情報を追加できます</p>
-      <div class="custom-title-row">
-        <input id="newTitle" type="text" placeholder="タイトル（例：近所の崖）">
-        <select id="newCategory">
+    <div class="card set-section">
+      <div class="set-section-title">➕ マイ情報を追加</div>
+      <p style="font-size:12px;color:var(--muted);margin-bottom:8px;">近所の危険箇所、かかりつけ病院など個人情報を追加できます</p>
+      <div style="display:flex;gap:6px;margin-bottom:6px;">
+        <input id="newTitle" type="text" placeholder="タイトル" style="flex:1;padding:7px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;">
+        <select id="newCategory" style="padding:7px 8px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:#fff;">
           <option value="🏠 自宅">🏠 自宅</option>
           <option value="🏥 医療">🏥 医療</option>
           <option value="⚠ 危険">⚠ 危険</option>
@@ -474,220 +510,449 @@
           <option value="📝 メモ">📝 メモ</option>
         </select>
       </div>
-      <textarea id="newBody" placeholder="詳細（場所・電話番号・注意事項など）"></textarea>
+      <textarea id="newBody" placeholder="詳細（場所・電話番号・注意事項など）" style="width:100%;min-height:56px;padding:7px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;resize:vertical;font-family:inherit;margin-bottom:6px;"></textarea>
       <button class="btn btn-primary btn-sm" onclick="addCustomItem()">＋ 追加する</button>
-      <div id="customList" style="margin-top:14px;"></div>
+      <div id="customList" style="margin-top:12px;"></div>
     </div>
 
     <div class="card">
-      <h2>ℹ️ このアプリについて</h2>
-      <div class="info-row"><span>バージョン</span><span class="val">1.0.0</span></div>
-      <div class="info-row"><span>オフライン対応</span><span class="val" style="color:var(--green);">✓ PWA</span></div>
-      <div class="info-row"><span>データ保存</span><span class="val">端末内のみ</span></div>
-      <div class="info-row"><span>対象地域</span><span class="val">鹿児島市（主）</span></div>
-      <div style="margin-top:10px;font-size:12px;color:var(--muted);line-height:1.7;">
-        気象・防災データは気象庁・鹿児島市・鹿児島県の公開資料に基づきます。
-        リアルタイム情報はオンライン時に公式機関で確認してください。
+      <div class="card-title">ℹ️ このアプリについて</div>
+      <div class="irow"><span>バージョン</span><span class="val">2.0.0</span></div>
+      <div class="irow"><span>オフライン対応</span><span class="val" style="color:var(--green);">✓ PWA</span></div>
+      <div class="irow"><span>データ保存</span><span class="val">端末内のみ</span></div>
+      <div class="irow"><span>対象地域</span><span class="val">鹿児島市（主）</span></div>
+      <div style="margin-top:8px;font-size:11px;color:var(--muted);line-height:1.7;">
+        気象・防災データは気象庁・鹿児島市・国土交通省の公開資料に基づきます。リアルタイム情報はオンライン時に公式機関で確認してください。
       </div>
     </div>
   </section>
 
 </main>
 
-<!-- ボトムナビ -->
+<!-- Bottom Nav -->
 <nav id="nav">
-  <button class="nav-btn active" onclick="showPage('home',this)">
-    <span class="ico">🏠</span><span>ホーム</span>
-  </button>
-  <button class="nav-btn" onclick="showPage('rain',this)">
-    <span class="ico">🌧</span><span>雨量</span>
-  </button>
-  <button class="nav-btn" onclick="showPage('sabo',this)">
-    <span class="ico">⛰</span><span>土砂・火山</span>
-  </button>
-  <button class="nav-btn" onclick="showPage('life',this)">
-    <span class="ico">🏃</span><span>避難・暮らし</span>
-  </button>
-  <button class="nav-btn" onclick="showPage('info',this)">
-    <span class="ico">📋</span><span>情報管理</span>
-  </button>
+  <button class="nb active" onclick="showPage('home',this)"><span class="ic">🏠</span><span>ホーム</span></button>
+  <button class="nb" onclick="showPage('rain',this)"><span class="ic">🌧</span><span>雨量・台風</span></button>
+  <button class="nb" onclick="showPage('sabo',this)"><span class="ic">⛰</span><span>土砂・火山</span></button>
+  <button class="nb" onclick="showPage('map',this)"><span class="ic">🗺</span><span>地図</span></button>
+  <button class="nb" onclick="showPage('settings',this)"><span class="ic">⚙</span><span>設定</span></button>
 </nav>
 
+<!-- Leaflet JS -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
 <script>
-// ─── ページ切替 ───────────────────────────────
+// ═══════════════════════════════════════════════
+// ページ切替
+// ═══════════════════════════════════════════════
+let mapInitialized = false;
+
 function showPage(id, btn) {
-  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
-  document.getElementById('page-' + id).classList.add('active');
+  document.querySelectorAll('.page, .page-map').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nb').forEach(b => b.classList.remove('active'));
+  const pg = document.getElementById('page-' + id);
+  if (pg) pg.classList.add('active');
   if (btn) btn.classList.add('active');
-  window.scrollTo(0, 0);
+  // nav-btn without explicit btn (e.g. programmatic call): find it
+  if (!btn) {
+    document.querySelectorAll('.nb').forEach(b => {
+      if (b.getAttribute('onclick') && b.getAttribute('onclick').includes("'" + id + "'")) {
+        b.classList.add('active');
+      }
+    });
+  }
+  if (id !== 'map') document.getElementById('main').scrollTop = 0;
+  if (id === 'map' && !mapInitialized) { initMap(); mapInitialized = true; }
 }
 
-// ─── 月別平均降水量データ ────────────────────
-const MONTHLY_RAIN = [
-  { m:'1月', mm: 76 }, { m:'2月', mm: 104 }, { m:'3月', mm: 145 }, { m:'4月', mm: 191 },
-  { m:'5月', mm: 221 }, { m:'6月', mm: 447 }, { m:'7月', mm: 398 }, { m:'8月', mm: 254 },
-  { m:'9月', mm: 196 }, { m:'10月', mm: 109 }, { m:'11月', mm: 98 }, { m:'12月', mm: 72 }
-];
-const TOTAL_ANNUAL = MONTHLY_RAIN.reduce((s, r) => s + r.mm, 0); // ≈ 2311
+// ═══════════════════════════════════════════════
+// 月別平均降水量（気象庁 1991〜2020 平年値）
+// ═══════════════════════════════════════════════
+const MONTHLY_RAIN = [76,104,145,191,221,447,398,254,196,109,98,72];
+const MONTH_NAMES  = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
 
 function buildMonthRainGrid() {
   const grid = document.getElementById('monthRainGrid');
   if (!grid) return;
-  const max = Math.max(...MONTHLY_RAIN.map(r => r.mm));
-  grid.innerHTML = MONTHLY_RAIN.map(r => {
-    const isPeak = r.mm >= 300;
-    return `<div class="month-cell ${isPeak ? 'peak' : ''}">
-      <div class="mo">${r.m}</div>
-      <div class="mm">${r.mm}</div>
+  grid.innerHTML = MONTHLY_RAIN.map((mm, i) =>
+    `<div class="mrc ${mm >= 300 ? 'peak' : ''}">
+      <div class="mo">${MONTH_NAMES[i]}</div>
+      <div class="mm">${mm}</div>
       <div class="mo">mm</div>
-    </div>`;
-  }).join('');
+    </div>`
+  ).join('');
 }
 
-// ─── ホーム ダッシュボード更新 ────────────────
+// ═══════════════════════════════════════════════
+// ホームダッシュボード
+// ═══════════════════════════════════════════════
 function updateDashboard() {
-  const now = new Date();
-  const mo = now.getMonth(); // 0-based
-  const day = now.getDate();
-  const daysInMonth = new Date(now.getFullYear(), mo + 1, 0).getDate();
-  const avgMonth = MONTHLY_RAIN[mo].mm;
+  const mo = new Date().getMonth();
+  const day = new Date().getDate();
+  const days = new Date(new Date().getFullYear(), mo + 1, 0).getDate();
+  const avg = MONTHLY_RAIN[mo];
+  const est = Math.round(avg * (day / days));
+  const pct = Math.min(est / avg * 100, 150);
 
-  // 今月の経過日数割合で想定累積雨量（デモ用近似値）
-  const estimated = Math.round(avgMonth * (day / daysInMonth));
-  const pct = Math.min(Math.round(estimated / avgMonth * 100), 150);
+  document.getElementById('totalRain').textContent = est;
+  document.getElementById('avgRain').textContent = avg;
+  const bar = document.getElementById('rainBar');
+  bar.style.width = Math.min(pct, 100) + '%';
+  bar.style.background = pct > 100 ? '#c0392b' : pct > 80 ? '#e67e22' : '#2980b9';
 
-  document.getElementById('totalRain').textContent = estimated;
-  document.getElementById('avgRain').textContent = avgMonth;
-  const barEl = document.getElementById('rainBar');
-  const clamp = Math.min(pct, 100);
-  barEl.style.width = clamp + '%';
-  barEl.style.background = pct > 100 ? '#c0392b' : pct > 80 ? '#e67e22' : '#2980b9';
+  let risk='低', rc='var(--green)';
+  if (mo===5||mo===6){ risk='高'; rc='var(--red2)'; }
+  else if (mo===7||mo===8){ risk='中〜高'; rc='var(--orange)'; }
+  else if (mo===9){ risk='中'; rc='var(--yellow)'; }
+  document.getElementById('saboLevel').textContent = risk;
+  document.getElementById('saboLevel').style.color = rc;
+  document.getElementById('saboRain').textContent = est + ' mm（今月推定）';
 
-  // 土砂リスク（梅雨・台風期は中〜高）
-  let riskLabel = '低';
-  let riskColor = 'var(--green)';
-  if (mo === 5 || mo === 6) { riskLabel = '高'; riskColor = 'var(--red2)'; }
-  else if (mo === 7 || mo === 8) { riskLabel = '中〜高'; riskColor = 'var(--orange)'; }
-  else if (mo === 9) { riskLabel = '中'; riskColor = 'var(--yellow)'; }
-  document.getElementById('saboLevel').textContent = riskLabel;
-  document.getElementById('saboLevel').style.color = riskColor;
-  document.getElementById('saboRain72').textContent = estimated + ' mm（今月推定）';
-
-  // 警告バナー
   const banner = document.getElementById('alertBanner');
-  const alertTitle = document.getElementById('alertTitle');
-  const alertSub = document.getElementById('alertSub');
-  if (mo === 5 || mo === 6) {
-    banner.className = 'level-bar lv4';
-    alertTitle.textContent = '⚠ 梅雨期間中 — 土砂災害に警戒';
-    alertSub.textContent = '大雨・土砂情報を毎日確認してください';
-  } else if (mo === 7 || mo === 8) {
-    banner.className = 'level-bar lv3';
-    alertTitle.textContent = '🌀 台風シーズン — 事前準備を';
-    alertSub.textContent = '台風接近時は早めの避難行動を';
+  const ttl = document.getElementById('alertTitle');
+  const sub = document.getElementById('alertSub');
+  if (mo===5||mo===6){
+    banner.className='alert-bar lv3';
+    ttl.textContent='⚠ 梅雨期間中 — 土砂災害に警戒';
+    sub.textContent='大雨・土砂情報を毎日確認してください';
+  } else if (mo===7||mo===8){
+    banner.className='alert-bar lv2';
+    ttl.textContent='🌀 台風シーズン — 事前準備を';
+    sub.textContent='台風接近時は早めの避難行動を';
   } else {
-    banner.className = 'level-bar lv1';
-    alertTitle.textContent = '現在：特別な警報なし';
-    alertSub.textContent = '平常時 — 日頃の備えを確認しましょう';
+    banner.className='alert-bar lv0';
+    ttl.textContent='現在：特別な警報なし';
+    sub.textContent='平常時 — 日頃の備えを確認しましょう';
   }
 }
 
-// ─── チェックリスト 永続化 ──────────────────
+// ═══════════════════════════════════════════════
+// チェックリスト 永続化
+// ═══════════════════════════════════════════════
 function initChecklists() {
-  const lists = ['dc1','dc2','dc3','dc4','dc5','ash1','ash2','ash3','ash4','ash5',
-                 'b1','b2','b3','b4','b5','b6','b7','b8','b9','b10','b11','b12'];
-  lists.forEach(id => {
+  ['dc1','dc2','dc3','dc4','dc5',
+   'ash1','ash2','ash3','ash4','ash5',
+   'b1','b2','b3','b4','b5','b6','b7','b8','b9','b10','b11'].forEach(id => {
     const el = document.getElementById(id);
     if (!el) return;
-    el.checked = localStorage.getItem('chk_' + id) === '1';
-    el.addEventListener('change', () => {
-      localStorage.setItem('chk_' + id, el.checked ? '1' : '0');
-    });
+    el.checked = localStorage.getItem('chk_'+id) === '1';
+    el.addEventListener('change', () => localStorage.setItem('chk_'+id, el.checked?'1':'0'));
   });
 }
 
-// ─── メモ ──────────────────────────────────
+// ═══════════════════════════════════════════════
+// メモ
+// ═══════════════════════════════════════════════
 function initMemo() {
   const el = document.getElementById('memoArea');
-  if (!el) return;
-  el.value = localStorage.getItem('memo_main') || '';
+  if (el) el.value = localStorage.getItem('memo_main') || '';
 }
 function saveMemo() {
   const el = document.getElementById('memoArea');
   localStorage.setItem('memo_main', el.value);
+  localStorage.setItem('cache_date', new Date().toLocaleString('ja-JP'));
   const st = document.getElementById('memoStatus');
   st.textContent = '✓ 保存しました';
   setTimeout(() => st.textContent = '', 2000);
 }
 
-// ─── カスタム情報 ────────────────────────
+// ═══════════════════════════════════════════════
+// カスタム情報
+// ═══════════════════════════════════════════════
+function esc(s){ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
 function loadCustomItems() {
-  const items = JSON.parse(localStorage.getItem('custom_items') || '[]');
-  renderCustomItems(items);
+  renderCustomItems(JSON.parse(localStorage.getItem('custom_items')||'[]'));
 }
 function renderCustomItems(items) {
   const el = document.getElementById('customList');
   if (!el) return;
-  if (items.length === 0) {
-    el.innerHTML = '<p style="font-size:13px;color:var(--muted);">まだ情報がありません。上のフォームから追加できます。</p>';
+  if (!items.length) {
+    el.innerHTML = '<p style="font-size:12px;color:var(--muted);">まだ情報がありません</p>';
     return;
   }
-  el.innerHTML = items.map((item, i) => `
+  el.innerHTML = items.map((item,i) => `
     <div class="custom-item">
-      <button class="del-btn" onclick="deleteCustomItem(${i})">×</button>
-      <div style="font-size:12px;color:var(--muted);margin-bottom:3px;">${item.category}</div>
-      <div style="font-weight:700;font-size:14px;margin-bottom:4px;">${escHtml(item.title)}</div>
-      <div style="font-size:13px;line-height:1.6;white-space:pre-wrap;">${escHtml(item.body)}</div>
-    </div>
-  `).join('');
-}
-function escHtml(s) {
-  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+      <button class="del" onclick="deleteCustomItem(${i})">×</button>
+      <div style="font-size:11px;color:var(--muted);">${item.category}</div>
+      <div style="font-weight:700;font-size:14px;margin:2px 0;">${esc(item.title)}</div>
+      <div style="font-size:13px;white-space:pre-wrap;">${esc(item.body||'')}</div>
+    </div>`).join('');
 }
 function addCustomItem() {
   const title = document.getElementById('newTitle').value.trim();
+  if (!title) { alert('タイトルを入力してください'); return; }
   const body  = document.getElementById('newBody').value.trim();
   const cat   = document.getElementById('newCategory').value;
-  if (!title) { alert('タイトルを入力してください'); return; }
-  const items = JSON.parse(localStorage.getItem('custom_items') || '[]');
-  items.unshift({ title, body, category: cat, date: new Date().toLocaleDateString('ja-JP') });
+  const items = JSON.parse(localStorage.getItem('custom_items')||'[]');
+  items.unshift({ title, body, category: cat });
   localStorage.setItem('custom_items', JSON.stringify(items));
   document.getElementById('newTitle').value = '';
   document.getElementById('newBody').value = '';
   renderCustomItems(items);
 }
 function deleteCustomItem(i) {
-  if (!confirm('この項目を削除しますか？')) return;
-  const items = JSON.parse(localStorage.getItem('custom_items') || '[]');
-  items.splice(i, 1);
+  if (!confirm('削除しますか？')) return;
+  const items = JSON.parse(localStorage.getItem('custom_items')||'[]');
+  items.splice(i,1);
   localStorage.setItem('custom_items', JSON.stringify(items));
   renderCustomItems(items);
 }
 
-// ─── オフライン検知 ──────────────────────
+// ═══════════════════════════════════════════════
+// Leaflet 地図
+// ═══════════════════════════════════════════════
+let map, layerNormal, layerSat, routeLayer=null;
+let spotMode=false, routeMode=false;
+let pendingSpotLatLng=null;
+let routeFrom=null, routeTo=null;
+let spotMarkers=[];
+
+function initMap() {
+  const el = document.getElementById('mapEl');
+  if (!el) return;
+
+  // 地図サイズを確定させる
+  const main = document.getElementById('main');
+  const hdrH = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--hdr-h'));
+  const navH = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--nav-h'));
+  el.style.height = (window.innerHeight - hdrH - navH) + 'px';
+
+  map = L.map('mapEl', {
+    center: [31.5966, 130.5571], // 鹿児島市
+    zoom: 13,
+    zoomControl: true
+  });
+
+  layerNormal = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenStreetMap contributors',
+    maxZoom: 19
+  }).addTo(map);
+
+  layerSat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+    attribution: '© Esri, Maxar, GeoEye',
+    maxZoom: 19
+  });
+
+  map.on('click', onMapClick);
+
+  // 保存済みスポットを復元
+  loadSpotsOnMap();
+}
+
+function setLayer(type) {
+  if (!map) return;
+  if (type === 'normal') {
+    map.removeLayer(layerSat);
+    if (!map.hasLayer(layerNormal)) layerNormal.addTo(map);
+    document.getElementById('btnNormal').classList.add('active');
+    document.getElementById('btnSat').classList.remove('active');
+  } else {
+    map.removeLayer(layerNormal);
+    if (!map.hasLayer(layerSat)) layerSat.addTo(map);
+    document.getElementById('btnSat').classList.add('active');
+    document.getElementById('btnNormal').classList.remove('active');
+  }
+}
+
+function toggleSpotMode() {
+  spotMode = !spotMode;
+  routeMode = false;
+  document.getElementById('btnSpot').classList.toggle('active', spotMode);
+  document.getElementById('btnRoute').classList.remove('active');
+  document.getElementById('spotPanel').classList.toggle('show', spotMode);
+  document.getElementById('routePanel').classList.remove('show');
+  map.getContainer().style.cursor = spotMode ? 'crosshair' : '';
+}
+
+function toggleRouteMode() {
+  routeMode = !routeMode;
+  spotMode = false;
+  document.getElementById('btnRoute').classList.toggle('active', routeMode);
+  document.getElementById('btnSpot').classList.remove('active');
+  document.getElementById('routePanel').classList.toggle('show', routeMode);
+  document.getElementById('spotPanel').classList.remove('show');
+  map.getContainer().style.cursor = routeMode ? 'crosshair' : '';
+  if (!routeMode) clearRoute();
+}
+
+function closeSpotPanel() { spotMode=false; document.getElementById('btnSpot').classList.remove('active'); document.getElementById('spotPanel').classList.remove('show'); map.getContainer().style.cursor=''; }
+function closeRoutePanel() { routeMode=false; document.getElementById('btnRoute').classList.remove('active'); document.getElementById('routePanel').classList.remove('show'); map.getContainer().style.cursor=''; clearRoute(); }
+
+function onMapClick(e) {
+  if (spotMode) {
+    pendingSpotLatLng = e.latlng;
+    document.getElementById('spotCoordHint').textContent =
+      `緯度: ${e.latlng.lat.toFixed(5)} / 経度: ${e.latlng.lng.toFixed(5)}`;
+  } else if (routeMode) {
+    if (!routeFrom) {
+      routeFrom = e.latlng;
+      document.getElementById('routeFromLabel').textContent =
+        `出発地: ${e.latlng.lat.toFixed(4)}, ${e.latlng.lng.toFixed(4)}`;
+      L.marker(routeFrom, {title:'出発地'}).addTo(map).bindPopup('🚩 出発地').openPopup();
+    } else if (!routeTo) {
+      routeTo = e.latlng;
+      document.getElementById('routeToLabel').textContent =
+        `目的地: ${e.latlng.lat.toFixed(4)}, ${e.latlng.lng.toFixed(4)}`;
+      L.marker(routeTo, {title:'目的地'}).addTo(map).bindPopup('🏁 目的地').openPopup();
+    }
+  }
+}
+
+function saveSpot() {
+  const name = document.getElementById('spotName').value.trim();
+  const cat  = document.getElementById('spotCat').value;
+  if (!name) { alert('名称を入力してください'); return; }
+  if (!pendingSpotLatLng) { alert('地図をタップして位置を指定してください'); return; }
+
+  const spots = JSON.parse(localStorage.getItem('map_spots')||'[]');
+  const spot = { name, cat, lat: pendingSpotLatLng.lat, lng: pendingSpotLatLng.lng };
+  spots.push(spot);
+  localStorage.setItem('map_spots', JSON.stringify(spots));
+
+  addSpotMarker(spot, spots.length - 1);
+  document.getElementById('spotName').value = '';
+  pendingSpotLatLng = null;
+  document.getElementById('spotCoordHint').textContent = '地図をタップして位置を指定してください';
+  closeSpotPanel();
+}
+
+function addSpotMarker(spot, idx) {
+  const icon = L.divIcon({
+    html: `<div style="background:var(--red);color:#fff;border-radius:50%;width:28px;height:28px;display:flex;align-items:center;justify-content:center;font-size:14px;box-shadow:0 2px 6px rgba(0,0,0,.3);">${spot.cat.charAt(0)}</div>`,
+    className: '', iconSize: [28,28], iconAnchor: [14,14]
+  });
+  const m = L.marker([spot.lat, spot.lng], { icon })
+    .addTo(map)
+    .bindPopup(`<strong>${esc(spot.name)}</strong><br><small>${spot.cat}</small><br><button onclick="deleteSpot(${idx})" style="font-size:11px;color:red;background:none;border:none;cursor:pointer;margin-top:4px;">🗑 削除</button>`);
+  spotMarkers.push(m);
+}
+
+function loadSpotsOnMap() {
+  const spots = JSON.parse(localStorage.getItem('map_spots')||'[]');
+  spots.forEach((s,i) => addSpotMarker(s,i));
+}
+
+function deleteSpot(i) {
+  const spots = JSON.parse(localStorage.getItem('map_spots')||'[]');
+  spots.splice(i,1);
+  localStorage.setItem('map_spots', JSON.stringify(spots));
+  // マーカーをリセット
+  spotMarkers.forEach(m => map.removeLayer(m));
+  spotMarkers = [];
+  loadSpotsOnMap();
+  map.closePopup();
+}
+
+function goMyLocation() {
+  if (!navigator.geolocation) { alert('位置情報が利用できません'); return; }
+  navigator.geolocation.getCurrentPosition(pos => {
+    const ll = [pos.coords.latitude, pos.coords.longitude];
+    map.setView(ll, 15);
+    L.circle(ll, { radius: pos.coords.accuracy, color: '#2980b9', fillOpacity: .1 }).addTo(map);
+    L.marker(ll).addTo(map).bindPopup('📍 現在地').openPopup();
+  }, () => alert('位置情報を取得できませんでした'));
+}
+
+async function calcRoute() {
+  if (!routeFrom || !routeTo) { alert('出発地と目的地を地図上でタップして設定してください'); return; }
+  const info = document.getElementById('routeInfo');
+  info.textContent = '🔍 ルート検索中...';
+  try {
+    const url = `https://router.project-osrm.org/route/v1/foot/${routeFrom.lng},${routeFrom.lat};${routeTo.lng},${routeTo.lat}?overview=full&geometries=geojson`;
+    const res = await fetch(url);
+    const data = await res.json();
+    if (data.code !== 'Ok') throw new Error('ルートなし');
+    const route = data.routes[0];
+    const dist = (route.distance / 1000).toFixed(2);
+    const time = Math.round(route.duration / 60);
+    if (routeLayer) map.removeLayer(routeLayer);
+    routeLayer = L.geoJSON(route.geometry, {
+      style: { color: '#2980b9', weight: 5, opacity: .8 }
+    }).addTo(map);
+    map.fitBounds(routeLayer.getBounds(), { padding: [30,30] });
+    info.textContent = `🚶 徒歩 約${time}分 / ${dist}km`;
+    info.style.color = 'var(--green)';
+  } catch(e) {
+    info.textContent = '⚠ ルート取得失敗（オンライン接続を確認）';
+    info.style.color = 'var(--red)';
+  }
+}
+
+function clearRoute() {
+  routeFrom = null; routeTo = null;
+  if (routeLayer) { map.removeLayer(routeLayer); routeLayer=null; }
+  document.getElementById('routeFromLabel').textContent = '出発地: 未設定';
+  document.getElementById('routeToLabel').textContent = '目的地: 未設定';
+  document.getElementById('routeInfo').textContent = '';
+}
+
+// ═══════════════════════════════════════════════
+// オフライン・キャッシュ管理
+// ═══════════════════════════════════════════════
 function updateOnlineStatus() {
-  const badge = document.getElementById('offlineBadge');
-  badge.classList.toggle('show', !navigator.onLine);
+  document.getElementById('offlineBadge').classList.toggle('show', !navigator.onLine);
 }
 window.addEventListener('online',  updateOnlineStatus);
 window.addEventListener('offline', updateOnlineStatus);
 updateOnlineStatus();
 
-// ─── Service Worker 登録 ─────────────────
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('sw.js').catch(e => console.warn('SW:', e));
+function triggerUpdate() {
+  if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+    navigator.serviceWorker.controller.postMessage({ type: 'SKIP_WAITING' });
+  }
+  const msg = document.getElementById('cacheStatusMsg');
+  if (msg) { msg.textContent = '⟳ 更新中...'; msg.className = 'cache-status'; }
+  setTimeout(() => {
+    localStorage.setItem('cache_date', new Date().toLocaleString('ja-JP'));
+    if (msg) { msg.textContent = '✓ 最新版です'; msg.className = 'cache-status ok'; }
+    updateCacheUI();
+  }, 1200);
+}
+
+function clearCacheConfirm() {
+  if (!confirm('キャッシュを削除すると次回オンライン時に再取得します。よろしいですか？')) return;
+  caches.keys().then(keys => Promise.all(keys.map(k => caches.delete(k)))).then(() => {
+    const msg = document.getElementById('cacheStatusMsg');
+    if (msg) { msg.textContent = '✓ キャッシュを削除しました'; msg.className = 'cache-status ok'; }
   });
 }
 
-// ─── 初期化 ─────────────────────────────
+function updateCacheUI() {
+  const d = localStorage.getItem('cache_date');
+  const el = document.getElementById('cacheDate');
+  if (el) el.textContent = d || '未取得';
+}
+
+// ═══════════════════════════════════════════════
+// Service Worker
+// ═══════════════════════════════════════════════
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js').then(reg => {
+      reg.addEventListener('updatefound', () => {
+        const nw = reg.installing;
+        nw.addEventListener('statechange', () => {
+          if (nw.state === 'installed' && navigator.serviceWorker.controller) {
+            const b = document.getElementById('updateBtn');
+            if (b) { b.textContent = '↑ 更新あり'; b.style.background='rgba(255,255,0,.3)'; }
+          }
+        });
+      });
+    }).catch(e => console.warn('SW:', e));
+  });
+}
+
+// ═══════════════════════════════════════════════
+// 初期化
+// ═══════════════════════════════════════════════
 document.addEventListener('DOMContentLoaded', () => {
   buildMonthRainGrid();
   updateDashboard();
   initChecklists();
   initMemo();
   loadCustomItems();
+  updateCacheUI();
 });
 </script>
 </body>
