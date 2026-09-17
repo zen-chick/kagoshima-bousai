@@ -1,0 +1,21 @@
+{
+  "name": "鹿児島 防災ナビ",
+  "short_name": "防災ナビ",
+  "description": "鹿児島パーソナル防災アプリ — 雨量・土砂・火山・避難情報をオフラインで確認",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#f4f4f4",
+  "theme_color": "#c0392b",
+  "orientation": "portrait",
+  "lang": "ja",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ],
+  "categories": ["utilities", "lifestyle"],
+  "screenshots": []
+}
