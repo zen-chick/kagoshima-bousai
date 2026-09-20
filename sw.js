@@ -1,10 +1,9 @@
-/* 防災トラベルナビ  Service Worker
+/* 鹿児島 防災ナビ  Service Worker
    - アプリ本体: cache first（更新は新バージョンのSWで差し替え）
-   - data/*.json（地域・火山の全国マスターデータ）: network first → 失敗時キャッシュ
-   - 気象庁・国土地理院への直接リクエストはSWを素通りさせる（アプリ側のIndexedDB/localStorageが担当）
+   - data/*.json: network first → 失敗時キャッシュ
    - 地図タイル: ここでは扱わない（アプリ側の IndexedDB が担当）
 */
-const VERSION = 'v1.0.0';
+const VERSION = 'v3.0.0';
 const SHELL = `shell-${VERSION}`;
 const DATA  = `data-${VERSION}`;
 
@@ -12,8 +11,7 @@ const SHELL_FILES = [
   './',
   './index.html',
   './manifest.json',
-  './data/regions.json',
-  './data/volcanoes.json',
+  './data/places.json',
   'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css',
   'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js',
   'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon.png',
