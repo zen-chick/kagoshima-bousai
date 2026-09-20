@@ -1,11 +1,66 @@
 {
- "updated": null,
+ "updated": "2026-09-20T13:25:27+09:00",
  "reportDatetime": null,
- "weather": {"text": "—", "icon": "❓", "code": null, "tempMax": null, "tempMin": null, "pop": null, "wind": "", "headline": ""},
- "amedas": {"station": "鹿児島", "time": null, "temp": null, "windDir": null, "windDeg": null, "wind": null, "gust": null, "rain10m": null, "rain1h": null, "rain3h": null, "rain24h": null},
+ "weather": {
+  "text": "晴れ",
+  "icon": "☀️",
+  "code": "100",
+  "tempMax": 33.0,
+  "tempMin": 34.0,
+  "pop": 0,
+  "headline": "",
+  "wind": "北の風 やや強く"
+ },
+ "amedas": {
+  "station": "鹿児島",
+  "time": "2026-09-20T13:10:00+09:00",
+  "temp": 32.8,
+  "windDir": "北西",
+  "windDeg": 315.0,
+  "wind": 2.4,
+  "gust": 6.8,
+  "rain10m": 0.0,
+  "rain1h": 0.0,
+  "rain3h": 0.0,
+  "rain24h": 0.0
+ },
  "warnings": [],
  "warningLevel": "none",
  "heavyRainFlash": null,
- "volcano": {"name": "桜島", "level": 3, "text": "入山規制", "updated": null},
- "nowcast": {"basetime": null, "validtime": null, "forecast": []}
+ "volcano": {
+  "name": "桜島",
+  "level": 3,
+  "text": "入山規制",
+  "updated": null
+ },
+ "nowcast": {
+  "basetime": "20260920012500",
+  "validtime": "20260920012500",
+  "forecast": [
+   {
+    "basetime": "20260920042000",
+    "validtime": "20260920052000"
+   },
+   {
+    "basetime": "20260920042000",
+    "validtime": "20260920051500"
+   },
+   {
+    "basetime": "20260920042000",
+    "validtime": "20260920051000"
+   },
+   {
+    "basetime": "20260920042000",
+    "validtime": "20260920050500"
+   },
+   {
+    "basetime": "20260920042000",
+    "validtime": "20260920050000"
+   },
+   {
+    "basetime": "20260920042000",
+    "validtime": "20260920045500"
+   }
+  ]
+ }
 }
