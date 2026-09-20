@@ -1,16 +1,15 @@
 {
-  "name": "鹿児島 防災ナビ",
-  "short_name": "防災ナビ",
-  "description": "鹿児島市向けのパーソナル防災アプリ。天気・警報・雨量・土砂/火山・地図をオフラインでも確認できます。",
+  "name": "防災トラベルナビ",
+  "short_name": "防災トラベル",
+  "description": "全国どこでも、現在地に合わせて気象警報・雨量・土砂/火山・地図を確認できる旅行者向け防災アプリ。",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#10131a",
-  "theme_color": "#10131a",
+  "background_color": "#f0f2f5",
+  "theme_color": "#c0392b",
   "lang": "ja",
   "icons": [
-    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
-    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
   ]
 }
