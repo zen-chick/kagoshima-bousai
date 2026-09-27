@@ -1,5 +1,5 @@
 {
- "updated": "2026-09-28T00:23:10+09:00",
+ "updated": "2026-09-28T00:26:33+09:00",
  "reportDatetime": null,
  "weather": {
   "text": "雨 所により 雷を伴い 激しく 降る",
@@ -34,8 +34,8 @@
   "updated": null
  },
  "nowcast": {
-  "basetime": "20260927122000",
-  "validtime": "20260927122000",
+  "basetime": "20260927122500",
+  "validtime": "20260927122500",
   "forecast": [
    {
     "basetime": "20260927152000",
