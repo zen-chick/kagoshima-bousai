@@ -1,5 +1,5 @@
 {
- "updated": "2026-10-27T14:43:27+09:00",
+ "updated": "2026-10-27T14:54:29+09:00",
  "reportDatetime": null,
  "weather": {
   "text": "晴れ",
@@ -13,16 +13,16 @@
  },
  "amedas": {
   "station": "鹿児島",
-  "time": "2026-10-27T14:30:00+09:00",
+  "time": "2026-10-27T14:40:00+09:00",
   "temp": 25.7,
   "windDir": "北西",
   "windDeg": 315.0,
-  "wind": 6.2,
+  "wind": 7.0,
   "gust": 14.1,
   "rain10m": 0.0,
   "rain1h": 0.0,
   "rain3h": 0.0,
-  "rain24h": 3.5
+  "rain24h": 3.0
  },
  "warnings": [],
  "warningLevel": "none",
@@ -34,32 +34,32 @@
   "updated": null
  },
  "nowcast": {
-  "basetime": "20261027024000",
-  "validtime": "20261027024000",
+  "basetime": "20261027025000",
+  "validtime": "20261027025000",
   "forecast": [
    {
-    "basetime": "20261027054000",
+    "basetime": "20261027055000",
+    "validtime": "20261027065000"
+   },
+   {
+    "basetime": "20261027055000",
+    "validtime": "20261027064500"
+   },
+   {
+    "basetime": "20261027055000",
     "validtime": "20261027064000"
    },
    {
-    "basetime": "20261027054000",
+    "basetime": "20261027055000",
     "validtime": "20261027063500"
    },
    {
-    "basetime": "20261027054000",
+    "basetime": "20261027055000",
     "validtime": "20261027063000"
    },
    {
-    "basetime": "20261027054000",
+    "basetime": "20261027055000",
     "validtime": "20261027062500"
-   },
-   {
-    "basetime": "20261027054000",
-    "validtime": "20261027062000"
-   },
-   {
-    "basetime": "20261027054000",
-    "validtime": "20261027061500"
    }
   ]
  }
